@@ -1,71 +1,43 @@
-const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
-const { isAdmin } = require('../../utils/roleCheck');
-const ConfigManager = require('../../utils/configManager');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { HEX_COLORS } = require('../utils/colors');
+const ConfigManager = require('../utils/configManager');
 
-module.exports = {
-  data: new SlashCommandBuilder()
-    .setName('pedido')
-    .setDescription('Gerenciar pedidos da loja')
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .addSubcommand(subcommand => subcommand.setName('listar').setDescription('Listar pedidos'))
-    .addSubcommand(subcommand => subcommand.setName('ver').setDescription('Ver um pedido').addStringOption(option => option.setName('id').setDescription('ID do pedido').setRequired(true)))
-    .addSubcommand(subcommand => subcommand.setName('aprovar').setDescription('Aprovar pedido').addStringOption(option => option.setName('id').setDescription('ID do pedido').setRequired(true)))
-    .addSubcommand(subcommand => subcommand.setName('recusar').setDescription('Recusar pedido').addStringOption(option => option.setName('id').setDescription('ID do pedido').setRequired(true)))
-    .addSubcommand(subcommand => subcommand.setName('entregar').setDescription('Entregar pedido').addStringOption(option => option.setName('id').setDescription('ID do pedido').setRequired(true))),
+function buildComprasPanel() {
+  const products = ConfigManager.loadProducts().frutas || [];
+  const embed = new EmbedBuilder()
+    .setColor(HEX_COLORS.PRIMARY)
+    .setTitle('🐉 Dragon Store • Compras')
+    .setDescription('🛒 Carrinho e pedidos')
+    .setFooter({ text: 'Dragon Store', iconURL: 'https://cdn-icons-png.flaticon.com/512/3556/3556091.png' });
 
-  async execute(interaction) {
-    if (!isAdmin(interaction)) {
-      return interaction.reply({ content: '❌ Sem permissão.', ephemeral: true });
-    }
-
-    const orders = ConfigManager.loadOrders();
-    const subcommand = interaction.options.getSubcommand();
-
-    if (subcommand === 'listar') {
-      const embed = new EmbedBuilder().setColor(0x00FFFF).setTitle('🧾 Pedidos');
-      if (!orders.length) {
-        embed.setDescription('Nenhum pedido registrado.');
-        return interaction.reply({ embeds: [embed], ephemeral: true });
-      }
-      orders.slice(-10).reverse().forEach(order => {
-        embed.addFields({ name: `#${order.id}`, value: `${order.produtoNome} • ${order.status} • R$ ${Number(order.total).toFixed(2)}`, inline: false });
-      });
-      return interaction.reply({ embeds: [embed], ephemeral: true });
-    }
-
-    const id = interaction.options.getString('id');
-    const order = orders.find(item => item.id === id);
-    if (!order) {
-      return interaction.reply({ content: '❌ Pedido não encontrado.', ephemeral: true });
-    }
-
-    if (subcommand === 'ver') {
-      const embed = new EmbedBuilder().setColor(0x00FFFF).setTitle(`🧾 Pedido #${order.id}`).addFields(
-        { name: '👤 Usuário', value: `<@${order.userId}>`, inline: true },
-        { name: '📦 Produto', value: order.produtoNome, inline: true },
-        { name: '📊 Quantidade', value: String(order.quantidade), inline: true },
-        { name: '💰 Total', value: `R$ ${Number(order.total).toFixed(2)}`, inline: true },
-        { name: '📌 Status', value: order.status, inline: true }
-      );
-      return interaction.reply({ embeds: [embed], ephemeral: true });
-    }
-
-    if (subcommand === 'aprovar') {
-      order.status = 'pagamento_aprovado';
-      ConfigManager.saveOrders(orders);
-      return interaction.reply({ content: `✅ Pedido #${id} aprovado.`, ephemeral: true });
-    }
-
-    if (subcommand === 'recusar') {
-      order.status = 'pagamento_recusado';
-      ConfigManager.saveOrders(orders);
-      return interaction.reply({ content: `❌ Pedido #${id} recusado.`, ephemeral: true });
-    }
-
-    if (subcommand === 'entregar') {
-      order.status = 'entregue';
-      ConfigManager.saveOrders(orders);
-      return interaction.reply({ content: `📦 Pedido #${id} marcado como entregue.`, ephemeral: true });
-    }
+  if (!products.length) {
+    embed.addFields({ name: '⚠️ Estoque vazio', value: 'Nenhuma fruta disponível no momento.', inline: false });
+    return { embeds: [embed], components: [] };
   }
-};
+
+  products.forEach(product => {
+    embed.addFields({
+      name: `🍎 ${product.nome}`,
+      value: `💰 R$ ${Number(product.preco).toFixed(2)}\n📊 Estoque: ${product.estoque}\n📝 ${product.descricao || 'Sem descrição'}`,
+      inline: false
+    });
+  });
+
+  const row = new ActionRowBuilder();
+  products.forEach(product => {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`buy_product:frutas:${product.id}`)
+        .setLabel(`Comprar ${product.nome}`)
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji('🛒')
+    );
+  });
+
+  return { embeds: [embed], components: [row] };
+}
+
+module.exports = { buildComprasPanel, buildFrutasPanel: buildComprasPanel };
+
+path="src/panels/comprasPanel.js"},
+{

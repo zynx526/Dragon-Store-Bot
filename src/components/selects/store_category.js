@@ -1,22 +1,39 @@
-const { ChannelType, PermissionOverwriteFlags, PermissionFlagsBits } = require('discord.js');
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+const { createOrderFromCart, getCartSummary } = require('../../utils/store');
 
 module.exports = {
-  id: 'open_ticket',
+  id: 'cart_checkout',
   async execute(interaction) {
-    const guild = interaction.guild;
-    const channelName = `ticket-${interaction.user.username}`.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    const summary = getCartSummary(interaction.user.id);
+    if (!summary.items.length) {
+      return interaction.reply({ content: '❌ Seu carrinho está vazio.', ephemeral: true });
+    }
 
-    const channel = await guild.channels.create({
-      name: channelName,
-      type: ChannelType.GuildText,
-      permissionOverwrites: [
-        { id: guild.roles.everyone, deny: [PermissionFlagsBits.ViewChannel] },
-        { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
-        { id: guild.members.me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels] }
-      ]
-    });
+    const result = createOrderFromCart(interaction.user.id);
+    if (!result.success) {
+      return interaction.reply({ content: `❌ ${result.message}`, ephemeral: true });
+    }
 
-    await channel.send(`🎫 Ticket criado para ${interaction.user}... A equipe de suporte entrará em contato.`);
-    return interaction.reply({ content: `✅ Seu ticket foi criado: ${channel}`, ephemeral: true });
+    const order = result.order;
+    const embed = new EmbedBuilder()
+      .setColor(0x00FF00)
+      .setTitle('✅ Pedido finalizado')
+      .setDescription(`Seu pedido foi registrado com sucesso.`)
+      .addFields(
+        { name: '🆔 ID do pedido', value: order.id, inline: true },
+        { name: '👤 Usuário', value: `<@${interaction.user.id}>`, inline: true },
+        { name: '💵 Total', value: `R$ ${Number(order.total).toFixed(2)}`, inline: true },
+        { name: '📦 Produtos', value: order.produtos.map(item => `${item.nome} (${item.quantidade}x)`).join('\n') || 'Nenhum item', inline: false },
+        { name: '📅 Data', value: new Date(order.data).toLocaleString('pt-BR'), inline: false }
+      );
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`cart_view:${interaction.user.id}`).setLabel('Ver carrinho').setStyle(ButtonStyle.Secondary)
+    );
+
+    return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
   }
 };
+
+path="src/components/buttons/cart_checkout.js"},
+{
