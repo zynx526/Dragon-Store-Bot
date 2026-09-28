@@ -1,40 +1,39 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { HEX_COLORS } = require('../../utils/colors');
-const { getProducts } = require('../../utils/store');
+const { SlashCommandBuilder } = require('discord.js');
+const { getOrderById, setOrderPaymentProof } = require('../../utils/store');
 
-function buildComprasPanel() {
-  const products = getProducts().frutas || [];
-  const embed = new EmbedBuilder()
-    .setColor(HEX_COLORS.PRIMARY)
-    .setTitle('🐉 Dragon Store • Compras')
-    .setDescription('🛒 Carrinho, pedidos e checkout.')
-    .setFooter({ text: 'Dragon Store', iconURL: 'https://cdn-icons-png.flaticon.com/512/3556/3556091.png' });
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('comprovante')
+    .setDescription('Enviar o comprovante de pagamento Pix do pedido')
+    .addStringOption(option => option.setName('pedido_id').setDescription('ID do pedido').setRequired(true))
+    .addStringOption(option => option.setName('link').setDescription('Link do comprovante ou imagem do pagamento').setRequired(true))
+    .addStringOption(option => option.setName('observacao').setDescription('Observação opcional').setRequired(false)),
 
-  if (!products.length) {
-    embed.addFields({ name: '⚠️ Estoque vazio', value: 'Nenhuma fruta disponível no momento.', inline: false });
-    return { embeds: [embed], components: [] };
-  }
+  async execute(interaction) {
+    const orderId = interaction.options.getString('pedido_id');
+    const proofUrl = interaction.options.getString('link');
+    const order = getOrderById(orderId);
 
-  products.forEach(product => {
-    embed.addFields({
-      name: `🍎 ${product.nome}`,
-      value: `💰 R$ ${Number(product.preco).toFixed(2)}\n📊 Estoque: ${product.estoque}\n📝 ${product.descricao || 'Sem descrição'}`,
-      inline: false
+    if (!order) {
+      return interaction.reply({ content: '❌ Pedido não encontrado.', ephemeral: true });
+    }
+
+    if (order.userId !== interaction.user.id) {
+      return interaction.reply({ content: '❌ Este pedido pertence a outro usuário.', ephemeral: true });
+    }
+
+    const result = setOrderPaymentProof(orderId, proofUrl, {
+      userId: interaction.user.id,
+      observacao: interaction.options.getString('observacao') || ''
     });
-  });
 
-  const row = new ActionRowBuilder();
-  products.forEach(product => {
-    row.addComponents(
-      new ButtonBuilder()
-        .setCustomId(`buy_product:frutas:${product.id}`)
-        .setLabel(`Comprar ${product.nome}`)
-        .setStyle(ButtonStyle.Primary)
-        .setEmoji('🛒')
-    );
-  });
+    if (!result.success) {
+      return interaction.reply({ content: `❌ ${result.message}`, ephemeral: true });
+    }
 
-  return { embeds: [embed], components: [row] };
-}
-
-module.exports = { buildComprasPanel, buildFrutasPanel: buildComprasPanel };
+    return interaction.reply({
+      content: `✅ Comprovante enviado com sucesso para o pedido ${orderId}. Aguardando aprovação do administrador.`,
+      ephemeral: true
+    });
+  }
+};

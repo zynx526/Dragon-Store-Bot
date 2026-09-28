@@ -1,39 +1,44 @@
-const { SlashCommandBuilder } = require('discord.js');
-const { getOrderById, setOrderPaymentProof } = require('../../utils/store');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { getOrdersByUser } = require('../../utils/store');
+
+function formatStatus(status) {
+  const labels = {
+    pendente_pagamento: '⏳ Pendente de pagamento',
+    aguardando_aprovacao: '🔍 Aguardando aprovação',
+    aprovado: '✅ Aprovado',
+    recusado: '❌ Recusado',
+    entregue: '📦 Entregue'
+  };
+
+  return labels[status] || status;
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName('comprovante')
-    .setDescription('Enviar o comprovante de pagamento Pix do pedido')
-    .addStringOption(option => option.setName('pedido_id').setDescription('ID do pedido').setRequired(true))
-    .addStringOption(option => option.setName('link').setDescription('Link do comprovante ou imagem do pagamento').setRequired(true))
-    .addStringOption(option => option.setName('observacao').setDescription('Observação opcional').setRequired(false)),
+    .setName('minhas-compras')
+    .setDescription('Visualizar o histórico das suas compras'),
 
   async execute(interaction) {
-    const orderId = interaction.options.getString('pedido_id');
-    const proofUrl = interaction.options.getString('link');
-    const order = getOrderById(orderId);
+    const orders = getOrdersByUser(interaction.user.id).slice().reverse();
+    const embed = new EmbedBuilder()
+      .setColor(0x4CC9F0)
+      .setTitle('🛒 Minhas compras')
+      .setDescription('Histórico dos seus pedidos recentes.');
 
-    if (!order) {
-      return interaction.reply({ content: '❌ Pedido não encontrado.', ephemeral: true });
+    if (!orders.length) {
+      embed.addFields({ name: '📭 Sem compras', value: 'Você ainda não realizou nenhuma compra.', inline: false });
+      return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    if (order.userId !== interaction.user.id) {
-      return interaction.reply({ content: '❌ Este pedido pertence a outro usuário.', ephemeral: true });
-    }
-
-    const result = setOrderPaymentProof(orderId, proofUrl, {
-      userId: interaction.user.id,
-      observacao: interaction.options.getString('observacao') || ''
+    orders.slice(0, 5).forEach(order => {
+      const items = (order.produtos || []).map(item => `${item.nome} (${item.quantidade}x)`).join(', ') || 'Nenhum item';
+      embed.addFields({
+        name: `${order.id} • ${formatStatus(order.status)}`,
+        value: `💰 R$ ${Number(order.total || 0).toFixed(2)}\n📦 ${items}`,
+        inline: false
+      });
     });
 
-    if (!result.success) {
-      return interaction.reply({ content: `❌ ${result.message}`, ephemeral: true });
-    }
-
-    return interaction.reply({
-      content: `✅ Comprovante enviado com sucesso para o pedido ${orderId}. Aguardando aprovação do administrador.`,
-      ephemeral: true
-    });
+    return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 };

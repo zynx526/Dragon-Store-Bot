@@ -1,29 +1,22 @@
-const { ModalBuilder, ActionRowBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const { EmbedBuilder } = require('discord.js');
 
 module.exports = {
-  id: 'open_ticket',
+  id: 'ticket_modal',
   async execute(interaction) {
-    const modal = new ModalBuilder()
-      .setCustomId('ticket_modal')
-      .setTitle('Abrir atendimento');
+    const assunto = interaction.fields.getTextInputValue('ticket_assunto');
+    const mensagem = interaction.fields.getTextInputValue('ticket_mensagem');
 
-    const assunto = new TextInputBuilder()
-      .setCustomId('ticket_assunto')
-      .setLabel('Assunto')
-      .setRequired(true)
-      .setStyle(TextInputStyle.Short);
+    const embed = new EmbedBuilder()
+      .setColor(0x4CC9F0)
+      .setTitle('🎫 Novo ticket de suporte')
+      .setDescription('Um cliente abriu um ticket de atendimento.')
+      .addFields(
+        { name: '👤 Usuário', value: `<@${interaction.user.id}>`, inline: true },
+        { name: '🧾 Assunto', value: assunto || 'Sem assunto', inline: false },
+        { name: '💬 Mensagem', value: mensagem || 'Sem mensagem', inline: false }
+      );
 
-    const mensagem = new TextInputBuilder()
-      .setCustomId('ticket_mensagem')
-      .setLabel('Descreva seu problema')
-      .setRequired(true)
-      .setStyle(TextInputStyle.Paragraph);
-
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(assunto),
-      new ActionRowBuilder().addComponents(mensagem)
-    );
-
-    await interaction.showModal(modal);
+    await interaction.reply({ content: '✅ Ticket enviado com sucesso. Nossa equipe irá responder em breve.', ephemeral: true });
+    await interaction.channel.send({ embeds: [embed] }).catch(() => {});
   }
 };

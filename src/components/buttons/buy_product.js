@@ -1,23 +1,44 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { HEX_COLORS } = require('../utils/colors');
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { getProductById, addToCart, getCartSummary } = require('../../utils/store');
 
-function buildSuportePanel() {
-  const embed = new EmbedBuilder()
-    .setColor(HEX_COLORS.PRIMARY)
-    .setTitle('🐉 Dragon Store • Suporte')
-    .setDescription('Atendimento rápido e organizado para clientes e administradores.')
-    .setFooter({ text: 'Dragon Store', iconURL: 'https://cdn-icons-png.flaticon.com/512/3556/3556091.png' })
-    .addFields(
-      { name: '🎫 Atendimento', value: 'Use o botão abaixo para abrir um ticket e falar com a equipe.', inline: false },
-      { name: '📌 Prazo', value: 'Resposta em até 24 horas úteis.', inline: false },
-      { name: '🧾 Dicas', value: 'Inclua o ID do pedido, o problema e prints sempre que possível.', inline: false }
+module.exports = {
+  id: 'buy_product',
+  async execute(interaction) {
+    const customId = interaction.customId || '';
+    const parts = customId.split(':');
+    const category = parts[1];
+    const productId = parts[2];
+    const product = getProductById(category, productId);
+
+    if (!product) {
+      return interaction.reply({ content: '❌ Produto não encontrado.', ephemeral: true });
+    }
+
+    if (Number(product.estoque) <= 0) {
+      return interaction.reply({ content: '❌ Este produto está fora de estoque no momento.', ephemeral: true });
+    }
+
+    const cartSummary = getCartSummary(interaction.user.id);
+    const currentQty = cartSummary.items.find(item => item.productId === productId && item.category === category)?.quantidade || 0;
+    if (Number(product.estoque) - currentQty <= 0) {
+      return interaction.reply({ content: '⚠️ Você já adicionou a quantidade disponível deste item ao carrinho.', ephemeral: true });
+    }
+
+    const result = addToCart(interaction.user.id, category, productId, 1);
+    if (!result.success) {
+      return interaction.reply({ content: `❌ ${result.message}`, ephemeral: true });
+    }
+
+    const summary = getCartSummary(interaction.user.id);
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`cart_view:${interaction.user.id}`).setLabel('Ver carrinho').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`cart_checkout:${interaction.user.id}`).setLabel('Finalizar compra').setStyle(ButtonStyle.Success)
     );
 
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('open_ticket').setLabel('Abrir atendimento').setStyle(ButtonStyle.Success)
-  );
-
-  return { embeds: [embed], components: [row] };
-}
-
-module.exports = { buildSuportePanel, renderPanel: buildSuportePanel };
+    return interaction.reply({
+      content: `✅ Produto adicionado ao carrinho:\n📦 ${product.nome}\n💰 R$ ${Number(product.preco).toFixed(2)}\n🧺 Total do carrinho: R$ ${Number(summary.total).toFixed(2)}`,
+      components: [row],
+      ephemeral: true
+    });
+  }
+};

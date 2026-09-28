@@ -1,44 +1,53 @@
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { getProductById, addToCart, getCartSummary } = require('../../utils/store');
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+const { getCartSummary } = require('../../utils/store');
+
+function buildRemoveRows(items) {
+  const rows = [];
+  for (let index = 0; index < items.length; index += 5) {
+    const chunk = items.slice(index, index + 5);
+    const row = new ActionRowBuilder();
+    chunk.forEach(item => {
+      row.addComponents(
+        new ButtonBuilder()
+          .setCustomId(`cart_remove:${item.category}:${item.productId}`)
+          .setLabel(`Remover ${item.nome}`)
+          .setStyle(ButtonStyle.Danger)
+      );
+    });
+    rows.push(row);
+  }
+  return rows;
+}
 
 module.exports = {
-  id: 'buy_product',
+  id: 'cart_view',
   async execute(interaction) {
-    const customId = interaction.customId || '';
-    const parts = customId.split(':');
-    const category = parts[1];
-    const productId = parts[2];
-    const product = getProductById(category, productId);
-
-    if (!product) {
-      return interaction.reply({ content: '❌ Produto não encontrado.', ephemeral: true });
-    }
-
-    if (Number(product.estoque) <= 0) {
-      return interaction.reply({ content: '❌ Este produto está fora de estoque no momento.', ephemeral: true });
-    }
-
-    const cartSummary = getCartSummary(interaction.user.id);
-    const currentQty = cartSummary.items.find(item => item.productId === productId && item.category === category)?.quantidade || 0;
-    if (Number(product.estoque) - currentQty <= 0) {
-      return interaction.reply({ content: '⚠️ Você já adicionou a quantidade disponível deste item ao carrinho.', ephemeral: true });
-    }
-
-    const result = addToCart(interaction.user.id, category, productId, 1);
-    if (!result.success) {
-      return interaction.reply({ content: `❌ ${result.message}`, ephemeral: true });
-    }
-
     const summary = getCartSummary(interaction.user.id);
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`cart_view:${interaction.user.id}`).setLabel('Ver carrinho').setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(`cart_checkout:${interaction.user.id}`).setLabel('Finalizar compra').setStyle(ButtonStyle.Success)
+    const embed = new EmbedBuilder()
+      .setColor(0x00FFFF)
+      .setTitle('🛒 Carrinho do cliente')
+      .setDescription(summary.items.length ? 'Itens do seu carrinho:' : 'Seu carrinho está vazio.');
+
+    if (!summary.items.length) {
+      return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
+    summary.items.forEach(item => {
+      embed.addFields({
+        name: `${item.nome} (${item.quantidade}x)`,
+        value: `💰 Unitário: R$ ${Number(item.precoUnitario).toFixed(2)}\nSubtotal: R$ ${Number(item.subtotal).toFixed(2)}`,
+        inline: false
+      });
+    });
+
+    embed.addFields({ name: '💵 Total', value: `R$ ${Number(summary.total).toFixed(2)}`, inline: false });
+
+    const rows = buildRemoveRows(summary.items);
+    const actionRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`cart_checkout:${interaction.user.id}`).setLabel('Finalizar compra').setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`cart_view:${interaction.user.id}`).setLabel('Atualizar').setStyle(ButtonStyle.Secondary)
     );
 
-    return interaction.reply({
-      content: `✅ Produto adicionado ao carrinho:\n📦 ${product.nome}\n💰 R$ ${Number(product.preco).toFixed(2)}\n🧺 Total do carrinho: R$ ${Number(summary.total).toFixed(2)}`,
-      components: [row],
-      ephemeral: true
-    });
+    return interaction.reply({ embeds: [embed], components: [...rows, actionRow], ephemeral: true });
   }
 };

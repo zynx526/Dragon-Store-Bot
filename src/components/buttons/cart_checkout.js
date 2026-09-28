@@ -1,36 +1,29 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
-const { removeFromCart, getCartSummary } = require('../../utils/store');
+const { getCartSummary } = require('../../utils/store');
 
 module.exports = {
-  id: 'cart_remove',
+  id: 'cart_checkout',
   async execute(interaction) {
-    const [_, category, productId] = interaction.customId.split(':');
-    const result = removeFromCart(interaction.user.id, category, productId);
-
-    if (!result.success) {
-      return interaction.reply({ content: `❌ ${result.message}`, ephemeral: true });
-    }
-
     const summary = getCartSummary(interaction.user.id);
-    const embed = new EmbedBuilder()
-      .setColor(0x00FFFF)
-      .setTitle('🛒 Carrinho atualizado')
-      .setDescription(summary.items.length ? 'Itens restantes:' : 'Seu carrinho está vazio.');
-
-    if (summary.items.length) {
-      summary.items.forEach(item => {
-        embed.addFields({
-          name: `${item.nome} (${item.quantidade}x)`,
-          value: `💰 Unitário: R$ ${Number(item.precoUnitario).toFixed(2)}\nSubtotal: R$ ${Number(item.subtotal).toFixed(2)}`,
-          inline: false
-        });
-      });
-      embed.addFields({ name: '💵 Total', value: `R$ ${Number(summary.total).toFixed(2)}`, inline: false });
+    if (!summary.items.length) {
+      return interaction.reply({ content: '❌ Seu carrinho está vazio.', ephemeral: true });
     }
+
+    const pixKey = process.env.PIX_KEY || 'PIX não configurado';
+    const embed = new EmbedBuilder()
+      .setColor(0xFFCC00)
+      .setTitle('💳 Confirmação de compra')
+      .setDescription('Antes de concluir, confirme a compra abaixo.')
+      .addFields(
+        { name: '🧺 Carrinho', value: summary.items.map(item => `${item.nome} (${item.quantidade}x)`).join('\n') || 'Nenhum item', inline: false },
+        { name: '💵 Total', value: `R$ ${Number(summary.total).toFixed(2)}`, inline: true },
+        { name: '💸 Chave Pix', value: pixKey, inline: true },
+        { name: '📌 Próximo passo', value: 'Ao confirmar, o pedido será criado e ficará pendente de pagamento e aprovação.', inline: false }
+      );
 
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`cart_view:${interaction.user.id}`).setLabel('Ver carrinho').setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(`cart_checkout:${interaction.user.id}`).setLabel('Finalizar compra').setStyle(ButtonStyle.Success)
+      new ButtonBuilder().setCustomId(`confirm_checkout:${interaction.user.id}`).setLabel('Confirmar compra').setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`cancel_checkout:${interaction.user.id}`).setLabel('Cancelar').setStyle(ButtonStyle.Danger)
     );
 
     return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
