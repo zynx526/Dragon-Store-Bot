@@ -1,0 +1,23 @@
+{
+  "contas": [
+    {
+      "id": "conta-premium-001",
+      "nome": "Conta Premium",
+      "preco": 29.99,
+      "estoque": 10,
+      "descricao": "Conta premium de Blox Fruits",
+      "categoria": "contas"
+    }
+  ],
+  "frutas": [
+    {
+      "id": "fruta-001",
+      "nome": "Fruta Light",
+      "preco": 19.99,
+      "estoque": 25,
+      "descricao": "Fruta de Blox Fruits",
+      "categoria": "frutas"
+    }
+  ]
+}
+
