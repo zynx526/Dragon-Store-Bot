@@ -1,7 +1,7 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 const { getCartSummary } = require('../../utils/store');
 
-function buildRows(items) {
+function buildRemoveRows(items) {
   const rows = [];
   for (let index = 0; index < items.length; index += 5) {
     const chunk = items.slice(index, index + 5);
@@ -42,7 +42,7 @@ module.exports = {
 
     embed.addFields({ name: '💵 Total', value: `R$ ${Number(summary.total).toFixed(2)}`, inline: false });
 
-    const rows = buildRows(summary.items);
+    const rows = buildRemoveRows(summary.items);
     const actionRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId(`cart_checkout:${interaction.user.id}`).setLabel('Finalizar compra').setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId(`cart_view:${interaction.user.id}`).setLabel('Atualizar').setStyle(ButtonStyle.Secondary)
@@ -51,6 +51,3 @@ module.exports = {
     return interaction.reply({ embeds: [embed], components: [...rows, actionRow], ephemeral: true });
   }
 };
-
-path="src/components/buttons/cart_view.js"},
-{

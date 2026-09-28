@@ -1,5 +1,5 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { addToCart, getProductById, getCartSummary } = require('../../utils/store');
+const { getProductById, addToCart, getCartSummary } = require('../../utils/store');
 
 module.exports = {
   id: 'buy_product',
@@ -18,6 +18,14 @@ module.exports = {
       return interaction.reply({ content: '❌ Este produto está fora de estoque.', ephemeral: true });
     }
 
+    const currentCart = getCartSummary(interaction.user.id);
+    const currentQuantity = currentCart.items.find(item => item.productId === productId && item.category === category)?.quantidade || 0;
+    const remaining = Number(product.estoque) - currentQuantity;
+
+    if (remaining <= 0) {
+      return interaction.reply({ content: '❌ Você já atingiu a quantidade disponível deste produto no carrinho.', ephemeral: true });
+    }
+
     const result = addToCart(interaction.user.id, category, productId, 1);
     if (!result.success) {
       return interaction.reply({ content: `❌ ${result.message}`, ephemeral: true });
@@ -30,12 +38,9 @@ module.exports = {
     );
 
     return interaction.reply({
-      content: `✅ Produto adicionado ao carrinho:\n📦 ${product.nome}\n💰 R$ ${Number(product.preco).toFixed(2)}\n🧺 Total no carrinho: R$ ${Number(summary.total).toFixed(2)}`,
+      content: `✅ Produto adicionado ao carrinho:\n📦 ${product.nome}\n💰 R$ ${Number(product.preco).toFixed(2)}\n🧺 Total do carrinho: R$ ${Number(summary.total).toFixed(2)}`,
       components: [row],
       ephemeral: true
     });
   }
 };
-
-path="src/components/buttons/buy_product.js"},
-{

@@ -6,6 +6,7 @@ module.exports = {
   async execute(interaction) {
     const [_, category, productId] = interaction.customId.split(':');
     const result = removeFromCart(interaction.user.id, category, productId);
+
     if (!result.success) {
       return interaction.reply({ content: `❌ ${result.message}`, ephemeral: true });
     }
@@ -35,6 +36,3 @@ module.exports = {
     return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
   }
 };
-
-path="src/components/buttons/cart_remove.js"},
-{

@@ -6,7 +6,10 @@ function normalizeCategory(category) {
 }
 
 function getProducts() {
-  return ConfigManager.loadProducts();
+  const products = ConfigManager.loadProducts();
+  if (!products.contas) products.contas = [];
+  if (!products.frutas) products.frutas = [];
+  return products;
 }
 
 function getProductByName(category, name) {
@@ -29,11 +32,11 @@ function addProduct(category, payload) {
     return { success: false, message: 'Categoria inválida.' };
   }
 
-  if (!payload || !payload.nome || !payload.preco || !Number.isFinite(Number(payload.preco)) || Number(payload.preco) < 0) {
+  if (!payload || !payload.nome || !payload.preco === undefined || !Number.isFinite(Number(payload.preco)) || Number(payload.preco) < 0) {
     return { success: false, message: 'Dados do produto inválidos.' };
   }
 
-  if (!payload.estoque || Number(payload.estoque) < 0) {
+  if (!payload.estoque && Number(payload.estoque) !== 0 || Number(payload.estoque) < 0) {
     return { success: false, message: 'Estoque inválido.' };
   }
 
@@ -60,7 +63,7 @@ function addProduct(category, payload) {
 function removeProduct(category, productId) {
   const normalizedCategory = normalizeCategory(category);
   if (!normalizedCategory) {
-    return { success: false };
+    return { success: false, message: 'Categoria inválida.' };
   }
 
   const products = getProducts();
@@ -99,12 +102,14 @@ function getCart(userId) {
 
 function getCartSummary(userId) {
   const cart = getCart(userId);
-  const items = cart.items.map(item => {
+  const items = (cart.items || []).map(item => {
     const product = getProductById(item.category, item.productId);
     if (!product) return null;
+
     const quantidade = Number(item.quantidade) || 0;
     const precoUnitario = Number(product.preco) || 0;
     const subtotal = precoUnitario * quantidade;
+
     return {
       productId: item.productId,
       category: item.category,
@@ -247,7 +252,7 @@ function createOrderFromCart(userId, cartOverride = null) {
   ConfigManager.saveProducts(products);
 
   const order = {
-    id: `DR-${Date.now().toString().slice(-6)}`,
+    id: `DR-${Date.now()}-${randomUUID().slice(0, 6).toUpperCase()}`,
     userId,
     usuario: `<@${userId}>`,
     produtos: orderItems.map(item => ({
@@ -286,6 +291,3 @@ module.exports = {
   clearCart,
   createOrderFromCart
 };
-
-path="src/utils/store.js"},
-{
