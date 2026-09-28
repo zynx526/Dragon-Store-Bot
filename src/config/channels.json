@@ -1,0 +1,33 @@
+{
+  "guildId": null,
+  "channels": {
+    "contas": {
+      "label": "📦 Canal de Contas",
+      "description": "Produtos da categoria Contas",
+      "channelId": null,
+      "panelMessageId": null,
+      "enabled": false
+    },
+    "frutas": {
+      "label": "🍎 Canal de Frutas",
+      "description": "Produtos da categoria Frutas",
+      "channelId": null,
+      "panelMessageId": null,
+      "enabled": false
+    },
+    "compras": {
+      "label": "🛒 Canal de Compras",
+      "description": "Carrinhos e pedidos",
+      "channelId": null,
+      "panelMessageId": null,
+      "enabled": false
+    },
+    "suporte": {
+      "label": "🆘 Canal de Suporte",
+      "description": "Atendimento ao cliente",
+      "channelId": null,
+      "panelMessageId": null,
+      "enabled": false
+    }
+  }
+}
