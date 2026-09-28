@@ -1,76 +1,50 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
-const { isAdmin } = require('../../utils/roleCheck');
-const ConfigManager = require('../../utils/configManager');
-const { buildContasPanel } = require('../../panels/contasPanel');
-const { buildFrutasPanel } = require('../../panels/frutasPanel');
-const { buildComprasPanel } = require('../../panels/comprasPanel');
-const { buildSuportePanel } = require('../../panels/suportePanel');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { HEX_COLORS } = require('../utils/colors');
+const { getAllOrders } = require('../utils/store');
 
-const categoryMap = {
-  contas: buildContasPanel,
-  frutas: buildFrutasPanel,
-  compras: buildComprasPanel,
-  suporte: buildSuportePanel
-};
+function formatStatus(status) {
+  const labels = {
+    pendente_pagamento: '⏳ Pendente de pagamento',
+    aguardando_aprovacao: '🕵️ Aguardando aprovação',
+    aprovado: '✅ Aprovado',
+    recusado: '❌ Recusado',
+    entregue: '📦 Entregue'
+  };
+
+  return labels[status] || status;
+}
+
+function buildComprasPanel() {
+  const orders = getAllOrders().slice().reverse().slice(0, 5);
+  const embed = new EmbedBuilder()
+    .setColor(HEX_COLORS.PRIMARY)
+    .setTitle('🐉 Dragon Store • Compras')
+    .setDescription('Painel de pedidos, pagamentos e entregas.')
+    .setFooter({ text: 'Dragon Store', iconURL: 'https://cdn-icons-png.flaticon.com/512/3556/3556091.png' });
+
+  if (!orders.length) {
+    embed.addFields({ name: '📭 Sem pedidos', value: 'Nenhum pedido registrado até o momento.', inline: false });
+    return { embeds: [embed], components: [] };
+  }
+
+  orders.forEach(order => {
+    const products = order.produtos.map(item => `${item.nome} (${item.quantidade}x)`).join(', ') || 'Nenhum item';
+    embed.addFields({
+      name: `${order.id} • ${formatStatus(order.status)}`,
+      value: `👤 ${order.usuario}\n💰 R$ ${Number(order.total || 0).toFixed(2)}\n📦 ${products}`,
+      inline: false
+    });
+  });
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('cart_view:panel').setLabel('Ver carrinho').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('cart_checkout:panel').setLabel('Finalizar compra').setStyle(ButtonStyle.Success)
+  );
+
+  return { embeds: [embed], components: [row] };
+}
 
 module.exports = {
-  data: new SlashCommandBuilder()
-    .setName('painel')
-    .setDescription('Envia ou atualiza o painel de um canal específico')
-    .addStringOption(option =>
-      option.setName('categoria')
-        .setDescription('Categoria do painel')
-        .setRequired(true)
-        .addChoices(
-          { name: 'Contas', value: 'contas' },
-          { name: 'Frutas', value: 'frutas' },
-          { name: 'Compras', value: 'compras' },
-          { name: 'Suporte', value: 'suporte' }
-        )
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
-
-  async execute(interaction) {
-    if (!isAdmin(interaction)) {
-      return interaction.reply({ content: '❌ Você não tem permissão para executar este comando.', ephemeral: true });
-    }
-
-    const category = interaction.options.getString('categoria');
-    const channel = interaction.channel;
-    const config = ConfigManager.loadChannelConfig();
-
-    if (!config.channels) config.channels = {};
-    if (!config.channels[category]) config.channels[category] = {};
-
-    const panelBuilder = categoryMap[category];
-    if (!panelBuilder) {
-      return interaction.reply({ content: '❌ Categoria inválida.', ephemeral: true });
-    }
-
-    const payload = panelBuilder();
-    const existingId = ConfigManager.getPanelMessageId(category);
-
-    try {
-      if (existingId) {
-        const existingMessage = await channel.messages.fetch(existingId).catch(() => null);
-        if (existingMessage) {
-          await existingMessage.edit(payload);
-          config.channels[category].channelId = channel.id;
-          config.channels[category].panelMessageId = existingMessage.id;
-          ConfigManager.saveChannelConfig(config);
-          return interaction.reply({ content: `✅ Painel de ${category} atualizado no canal atual.`, ephemeral: true });
-        }
-      }
-
-      const sent = await channel.send(payload);
-      config.channels[category].channelId = channel.id;
-      config.channels[category].panelMessageId = sent.id;
-      config.channels[category].enabled = true;
-      ConfigManager.saveChannelConfig(config);
-      return interaction.reply({ content: `✅ Painel de ${category} enviado no canal atual.`, ephemeral: true });
-    } catch (error) {
-      console.error('Erro ao enviar painel:', error);
-      return interaction.reply({ content: '❌ Não foi possível enviar o painel.', ephemeral: true });
-    }
-  }
+  buildComprasPanel,
+  renderPanel: buildComprasPanel
 };

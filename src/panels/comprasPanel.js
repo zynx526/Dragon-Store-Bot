@@ -1,61 +1,39 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { HEX_COLORS } = require('../utils/colors');
-const ConfigManager = require('../utils/configManager');
-
-function buildHeader(title) {
-  return new EmbedBuilder()
-    .setColor(HEX_COLORS.PRIMARY)
-    .setTitle(`🐉 Dragon Store • ${title}`)
-    .setDescription('Loja oficial de contas e frutas de Blox Fruits')
-    .setFooter({ text: 'Dragon Store', iconURL: 'https://cdn-icons-png.flaticon.com/512/3556/3556091.png' });
-}
-
-function formatProduct(product) {
-  return {
-    name: `🍎 ${product.nome}`,
-    value: `💰 R$ ${Number(product.preco).toFixed(2)}\n📊 Estoque: ${product.estoque}\n📝 ${product.descricao || 'Sem descrição'}`,
-    inline: false
-  };
-}
-
-async function renderPanel(category, interactionOrChannel) {
-  const products = ConfigManager.loadProducts();
-  const current = products[category] || [];
-
-  const embed = buildHeader('Frutas Disponíveis');
-
-  if (!current.length) {
-    embed.addFields({ name: '⚠️ Estoque vazio', value: 'Nenhuma fruta disponível no momento.', inline: false });
-    return { embeds: [embed], components: [] };
-  }
-
-  const rows = [];
-  for (let i = 0; i < current.length; i += 3) {
-    const chunk = current.slice(i, i + 3);
-    const row = new ActionRowBuilder();
-    chunk.forEach(product => {
-      row.addComponents(
-        new ButtonBuilder()
-          .setCustomId(`buy_product:${category}:${product.id}`)
-          .setLabel(product.nome)
-          .setStyle(ButtonStyle.Primary)
-          .setEmoji('🍎')
-      );
-    });
-    rows.push(row);
-  }
-
-  current.forEach(product => {
-    embed.addFields(formatProduct(product));
-  });
-
-  return { embeds: [embed], components: rows };
-}
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+const { createOrderFromCart, getCartSummary } = require('../../utils/store');
 
 module.exports = {
-  buildFrutasPanel: renderPanel,
-  renderPanel
-};
+  id: 'cart_checkout',
+  async execute(interaction) {
+    const summary = getCartSummary(interaction.user.id);
+    if (!summary.items.length) {
+      return interaction.reply({ content: '❌ Seu carrinho está vazio.', ephemeral: true });
+    }
 
-path="src/panels/frutasPanel.js"},
-{
+    const result = createOrderFromCart(interaction.user.id);
+    if (!result.success) {
+      return interaction.reply({ content: `❌ ${result.message}`, ephemeral: true });
+    }
+
+    const order = result.order;
+    const pixKey = process.env.PIX_KEY || 'PIX não configurado';
+
+    const embed = new EmbedBuilder()
+      .setColor(0xFFCC00)
+      .setTitle('💳 Pedido criado • Pagamento por Pix')
+      .setDescription('Seu pedido foi registrado e está aguardando pagamento para aprovação.\nUse o código Pix abaixo e envie o comprovante em seguida.')
+      .addFields(
+        { name: '🆔 Pedido', value: order.id, inline: true },
+        { name: '💰 Total', value: `R$ ${Number(order.total).toFixed(2)}`, inline: true },
+        { name: '📅 Data', value: new Date(order.data).toLocaleString('pt-BR'), inline: true },
+        { name: '💸 Chave Pix', value: pixKey, inline: false },
+        { name: '📦 Produtos', value: order.produtos.map(item => `${item.nome} (${item.quantidade}x)`).join('\n') || 'Nenhum item', inline: false },
+        { name: '🧾 Próximo passo', value: `Use o comando /comprovante com o ID do pedido e o link da imagem do comprovante.`, inline: false }
+      );
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`cart_view:${interaction.user.id}`).setLabel('Ver carrinho').setStyle(ButtonStyle.Secondary)
+    );
+
+    return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+  }
+};

@@ -1,38 +1,51 @@
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
-const { removeFromCart, getCartSummary } = require('../../utils/store');
+const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { getOrderById, setOrderPaymentProof } = require('../../utils/store');
 
 module.exports = {
-  id: 'cart_remove',
+  data: new SlashCommandBuilder()
+    .setName('comprovante')
+    .setDescription('Enviar o comprovante de pagamento Pix do pedido')
+    .addStringOption(option =>
+      option.setName('pedido_id')
+        .setDescription('ID do pedido')
+        .setRequired(true)
+    )
+    .addStringOption(option =>
+      option.setName('link')
+        .setDescription('Link do comprovante ou imagem do pagamento')
+        .setRequired(true)
+    )
+    .addStringOption(option =>
+      option.setName('observacao')
+        .setDescription('Observação opcional')
+        .setRequired(false)
+    ),
+
   async execute(interaction) {
-    const [_, category, productId] = interaction.customId.split(':');
-    const result = removeFromCart(interaction.user.id, category, productId);
+    const orderId = interaction.options.getString('pedido_id');
+    const proofUrl = interaction.options.getString('link');
+    const order = getOrderById(orderId);
+
+    if (!order) {
+      return interaction.reply({ content: '❌ Pedido não encontrado.', ephemeral: true });
+    }
+
+    if (order.userId !== interaction.user.id) {
+      return interaction.reply({ content: '❌ Este pedido pertence a outro usuário.', ephemeral: true });
+    }
+
+    const result = setOrderPaymentProof(orderId, proofUrl, {
+      userId: interaction.user.id,
+      observacao: interaction.options.getString('observacao') || ''
+    });
 
     if (!result.success) {
       return interaction.reply({ content: `❌ ${result.message}`, ephemeral: true });
     }
 
-    const summary = getCartSummary(interaction.user.id);
-    const embed = new EmbedBuilder()
-      .setColor(0x00FFFF)
-      .setTitle('🛒 Carrinho atualizado')
-      .setDescription(summary.items.length ? 'Itens restantes:' : 'Seu carrinho está vazio.');
-
-    if (summary.items.length) {
-      summary.items.forEach(item => {
-        embed.addFields({
-          name: `${item.nome} (${item.quantidade}x)`,
-          value: `💰 Unitário: R$ ${Number(item.precoUnitario).toFixed(2)}\nSubtotal: R$ ${Number(item.subtotal).toFixed(2)}`,
-          inline: false
-        });
-      });
-      embed.addFields({ name: '💵 Total', value: `R$ ${Number(summary.total).toFixed(2)}`, inline: false });
-    }
-
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`cart_view:${interaction.user.id}`).setLabel('Ver carrinho').setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(`cart_checkout:${interaction.user.id}`).setLabel('Finalizar compra').setStyle(ButtonStyle.Success)
-    );
-
-    return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+    await interaction.reply({
+      content: `✅ Comprovante enviado com sucesso para o pedido ${orderId}. Aguardando aprovação do administrador.`,
+      ephemeral: true
+    });
   }
 };
