@@ -1,36 +1,63 @@
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
-const { createOrderFromCart, getCartSummary } = require('../../utils/store');
+const { EmbedBuilder } = require('discord.js');
+const { HEX_COLORS } = require('./colors');
 
-module.exports = {
-  id: 'cart_checkout',
-  async execute(interaction) {
-    const summary = getCartSummary(interaction.user.id);
-    if (!summary.items.length) {
-      return interaction.reply({ content: '❌ Seu carrinho está vazio.', ephemeral: true });
-    }
+function createMainEmbed(title, description = null) {
+  const embed = new EmbedBuilder()
+    .setColor(HEX_COLORS.PRIMARY)
+    .setTitle(title || '🐉 Dragon Store')
+    .setFooter({ text: 'Dragon Store • Loja oficial', iconURL: 'https://cdn-icons-png.flaticon.com/512/3556/3556091.png' });
 
-    const result = createOrderFromCart(interaction.user.id);
-    if (!result.success) {
-      return interaction.reply({ content: `❌ ${result.message}`, ephemeral: true });
-    }
+  if (description) embed.setDescription(description);
+  return embed;
+}
 
-    const order = result.order;
-    const embed = new EmbedBuilder()
-      .setColor(0x00FF00)
-      .setTitle('✅ Pedido finalizado')
-      .setDescription('Seu pedido foi registrado com sucesso.')
-      .addFields(
-        { name: '🆔 ID do pedido', value: order.id, inline: true },
-        { name: '👤 Usuário', value: `<@${interaction.user.id}>`, inline: true },
-        { name: '💵 Total', value: `R$ ${Number(order.total).toFixed(2)}`, inline: true },
-        { name: '📦 Produtos', value: order.produtos.map(item => `${item.nome} (${item.quantidade}x)`).join('\n') || 'Nenhum item', inline: false },
-        { name: '📅 Data', value: new Date(order.data).toLocaleString('pt-BR'), inline: false }
-      );
+function createSuccessEmbed(title, description) {
+  return createMainEmbed(title, description).setColor(HEX_COLORS.SUCCESS);
+}
 
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`cart_view:${interaction.user.id}`).setLabel('Ver carrinho').setStyle(ButtonStyle.Secondary)
+function createErrorEmbed(title, description) {
+  return createMainEmbed(title, description).setColor(HEX_COLORS.ERROR);
+}
+
+function createInfoEmbed(title, description) {
+  return createMainEmbed(title, description).setColor(HEX_COLORS.INFO);
+}
+
+function createProductEmbed(product, category) {
+  const emoji = category === 'contas' ? '📦' : '🍎';
+  return createMainEmbed(`${emoji} ${product.nome}`)
+    .setColor(HEX_COLORS.SECONDARY)
+    .addFields(
+      { name: '💰 Preço', value: `R$ ${Number(product.preco).toFixed(2)}`, inline: true },
+      { name: '📊 Estoque', value: `${Number(product.estoque)} un.`, inline: true },
+      { name: '🏷️ Categoria', value: category === 'contas' ? 'Contas' : 'Frutas', inline: true },
+      { name: '📝 Descrição', value: product.descricao || 'Sem descrição', inline: false }
+    );
+}
+
+function createOrderEmbed(order) {
+  const statusEmoji = {
+    pendente_pagamento: '⏳',
+    aguardando_aprovacao: '🕵️',
+    aprovado: '✅',
+    recusado: '❌',
+    entregue: '📦'
+  };
+
+  const embed = createMainEmbed(`${statusEmoji[order.status] || '🧾'} Pedido ${order.id}`, `Status: ${order.status}`)
+    .setColor(order.status === 'aprovado' ? HEX_COLORS.SUCCESS : order.status === 'recusado' ? HEX_COLORS.ERROR : HEX_COLORS.PRIMARY)
+    .addFields(
+      { name: '👤 Usuário', value: order.usuario || 'N/A', inline: true },
+      { name: '💵 Total', value: `R$ ${Number(order.total || 0).toFixed(2)}`, inline: true },
+      { name: '📅 Data', value: new Date(order.data).toLocaleString('pt-BR'), inline: true },
+      { name: '📦 Produtos', value: (order.produtos || []).map(item => `${item.nome} (${item.quantidade}x)`).join('\n') || 'Nenhum item', inline: false }
     );
 
-    return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+  if (order.comprovante) {
+    embed.addFields({ name: '🧾 Comprovante', value: `[Abrir comprovante](${order.comprovante})`, inline: false });
   }
-};
+
+  return embed;
+}
+
+module.exports = { createMainEmbed, createSuccessEmbed, createErrorEmbed, createInfoEmbed, createProductEmbed, createOrderEmbed };

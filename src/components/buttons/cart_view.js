@@ -4,7 +4,7 @@ const { getProductById, addToCart, getCartSummary } = require('../../utils/store
 module.exports = {
   id: 'buy_product',
   async execute(interaction) {
-    const customId = interaction.customId;
+    const customId = interaction.customId || '';
     const parts = customId.split(':');
     const category = parts[1];
     const productId = parts[2];
@@ -15,15 +15,13 @@ module.exports = {
     }
 
     if (Number(product.estoque) <= 0) {
-      return interaction.reply({ content: '❌ Este produto está fora de estoque.', ephemeral: true });
+      return interaction.reply({ content: '❌ Este produto está fora de estoque no momento.', ephemeral: true });
     }
 
-    const currentCart = getCartSummary(interaction.user.id);
-    const currentQuantity = currentCart.items.find(item => item.productId === productId && item.category === category)?.quantidade || 0;
-    const remaining = Number(product.estoque) - currentQuantity;
-
-    if (remaining <= 0) {
-      return interaction.reply({ content: '❌ Você já atingiu a quantidade disponível deste produto no carrinho.', ephemeral: true });
+    const cartSummary = getCartSummary(interaction.user.id);
+    const currentQty = cartSummary.items.find(item => item.productId === productId && item.category === category)?.quantidade || 0;
+    if (Number(product.estoque) - currentQty <= 0) {
+      return interaction.reply({ content: '⚠️ Você já adicionou a quantidade disponível deste item ao carrinho.', ephemeral: true });
     }
 
     const result = addToCart(interaction.user.id, category, productId, 1);

@@ -1,11 +1,13 @@
 const HEX_COLORS = {
-  PRIMARY: 0x00FFFF,      // Azul neon
-  SECONDARY: 0x0099FF,    // Azul royal
-  DARK: 0x0a0e27,         // Preto profundo
-  SUCCESS: 0x00FF00,      // Verde neon
-  WARNING: 0xFFD700,      // Ouro
-  ERROR: 0xFF0000,        // Vermelho
-  ACCENT: 0xFF00FF        // Magenta neon
+  PRIMARY: 0x00FFFF,
+  SECONDARY: 0x0099FF,
+  DARK: 0x0A0E27,
+  SUCCESS: 0x00FF9D,
+  WARNING: 0xFFD166,
+  ERROR: 0xFF4D6D,
+  ACCENT: 0x9D4EDD,
+  INFO: 0x4CC9F0,
+  MUTED: 0x8EA7C7
 };
 
 module.exports = { HEX_COLORS };

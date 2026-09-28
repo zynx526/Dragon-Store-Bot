@@ -1,110 +1,44 @@
-const { Client, GatewayIntentBits, REST, Routes } = require('discord.js');
-require('dotenv').config();
-const fs = require('fs');
-const path = require('path');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { getOrdersByUser } = require('../../utils/store');
 
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.DirectMessages,
-    GatewayIntentBits.MessageContent
-  ]
-});
+function formatStatus(status) {
+  const labels = {
+    pendente_pagamento: '⏳ Pendente de pagamento',
+    aguardando_aprovacao: '🕵️ Aguardando aprovação',
+    aprovado: '✅ Aprovado',
+    recusado: '❌ Recusado',
+    entregue: '📦 Entregue'
+  };
 
-const TOKEN = process.env.DISCORD_TOKEN;
-const GUILD_ID = process.env.GUILD_ID;
-const CLIENT_ID = process.env.CLIENT_ID;
-
-if (!TOKEN || !GUILD_ID || !CLIENT_ID) {
-  console.error('❌ Erro: TOKEN, GUILD_ID e CLIENT_ID são obrigatórios no .env');
-  process.exit(1);
+  return labels[status] || status;
 }
 
-let commands = [];
-const commandHandlers = {};
-const componentHandlers = { buttons: {}, selects: {}, modals: {} };
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('minhas-compras')
+    .setDescription('Visualizar o histórico das suas compras'),
 
-// Carrega todos os comandos
-const commandFolders = ['admin', 'user'];
-commandFolders.forEach(folder => {
-  const folderPath = path.join(__dirname, 'commands', folder);
-  if (fs.existsSync(folderPath)) {
-    const files = fs.readdirSync(folderPath).filter(file => file.endsWith('.js'));
-    files.forEach(file => {
-      try {
-        const command = require(path.join(folderPath, file));
-        if (command.data) {
-          commands.push(command.data.toJSON());
-          commandHandlers[command.data.name] = command;
-        }
-      } catch (error) {
-        console.error(`❌ Erro ao carregar comando ${file}:`, error.message);
-      }
-    });
-  }
-});
+  async execute(interaction) {
+    const orders = getOrdersByUser(interaction.user.id).slice().reverse();
+    const embed = new EmbedBuilder()
+      .setColor(0x4CC9F0)
+      .setTitle('🛒 Minhas compras')
+      .setDescription('Histórico dos seus pedidos recentes.');
 
-// Carrega handlers de componentes
-const componentTypes = ['buttons', 'selects', 'modals'];
-componentTypes.forEach(type => {
-  const folderPath = path.join(__dirname, 'components', type);
-  if (fs.existsSync(folderPath)) {
-    const files = fs.readdirSync(folderPath).filter(file => file.endsWith('.js'));
-    files.forEach(file => {
-      try {
-        const handler = require(path.join(folderPath, file));
-        if (handler.id) {
-          componentHandlers[type][handler.id] = handler;
-        }
-      } catch (error) {
-        console.error(`❌ Erro ao carregar handler ${type}/${file}:`, error.message);
-      }
-    });
-  }
-});
-
-client.on('ready', async () => {
-  console.log(`✅ Bot conectado como: ${client.user.tag}`);
-  client.user.setActivity('🐉 Dragon Store', { type: 'WATCHING' });
-  
-  try {
-    const rest = new REST({ version: '10' }).setToken(TOKEN);
-    await rest.put(
-      Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
-      { body: commands }
-    );
-    console.log(`✅ ${commands.length} comando(s) registrado(s)`);
-  } catch (error) {
-    console.error('❌ Erro ao registrar comandos:', error.message);
-  }
-});
-
-client.on('interactionCreate', async (interaction) => {
-  try {
-    if (interaction.isChatInputCommand()) {
-      const command = commandHandlers[interaction.commandName];
-      if (!command) return;
-      await command.execute(interaction);
-    } else if (interaction.isButton()) {
-      const handler = componentHandlers.buttons[interaction.customId];
-      if (!handler) return;
-      await handler.execute(interaction);
-    } else if (interaction.isStringSelectMenu()) {
-      const handler = componentHandlers.selects[interaction.customId];
-      if (!handler) return;
-      await handler.execute(interaction);
-    } else if (interaction.isModalSubmit()) {
-      const handler = componentHandlers.modals[interaction.customId];
-      if (!handler) return;
-      await handler.execute(interaction);
+    if (!orders.length) {
+      embed.addFields({ name: '📭 Sem compras', value: 'Você ainda não realizou nenhuma compra.', inline: false });
+      return interaction.reply({ embeds: [embed], ephemeral: true });
     }
-  } catch (error) {
-    console.error('❌ Erro ao processar interação:', error);
-    if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({ content: '❌ Erro ao processar requisição', ephemeral: true }).catch(() => {});
-    }
-  }
-});
 
-client.login(TOKEN);
+    orders.slice(0, 5).forEach(order => {
+      const items = (order.produtos || []).map(item => `${item.nome} (${item.quantidade}x)`).join(', ') || 'Nenhum item';
+      embed.addFields({
+        name: `${order.id} • ${formatStatus(order.status)}`,
+        value: `💰 R$ ${Number(order.total || 0).toFixed(2)}\n📦 ${items}`,
+        inline: false
+      });
+    });
+
+    return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+};

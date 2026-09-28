@@ -101,7 +101,7 @@ module.exports = {
       if (novaDescricao) updates.descricao = novaDescricao;
 
       const result = updateProduct(category, product.id, updates);
-      return interaction.reply({ content: result.success ? `✅ Produto atualizado com sucesso.` : '❌ Não foi possível atualizar o produto.', ephemeral: true });
+      return interaction.reply({ content: result.success ? '✅ Produto atualizado com sucesso.' : '❌ Não foi possível atualizar o produto.', ephemeral: true });
     }
 
     if (subcommand === 'listar') {

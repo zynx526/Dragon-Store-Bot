@@ -1,39 +1,53 @@
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
-const { createOrderFromCart, getCartSummary } = require('../../utils/store');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { HEX_COLORS } = require('../utils/colors');
+const { getProducts } = require('../utils/store');
+
+function buildHeader(title) {
+  return new EmbedBuilder()
+    .setColor(HEX_COLORS.PRIMARY)
+    .setTitle(`🐉 Dragon Store • ${title}`)
+    .setDescription('Itens premium para sua coleção e experiência.')
+    .setFooter({ text: 'Dragon Store', iconURL: 'https://cdn-icons-png.flaticon.com/512/3556/3556091.png' });
+}
+
+function formatProduct(product) {
+  return {
+    name: `🍎 ${product.nome}`,
+    value: `💰 R$ ${Number(product.preco).toFixed(2)}\n📊 Estoque: ${product.estoque}\n📝 ${product.descricao || 'Sem descrição'}`,
+    inline: false
+  };
+}
+
+function buildFrutasPanel() {
+  const products = getProducts().frutas || [];
+  const embed = buildHeader('Frutas Disponíveis');
+
+  if (!products.length) {
+    embed.addFields({ name: '⚠️ Estoque vazio', value: 'Nenhuma fruta disponível no momento.', inline: false });
+    return { embeds: [embed], components: [] };
+  }
+
+  const rows = [];
+  for (let i = 0; i < products.length; i += 3) {
+    const chunk = products.slice(i, i + 3);
+    const row = new ActionRowBuilder();
+    chunk.forEach(product => {
+      row.addComponents(
+        new ButtonBuilder()
+          .setCustomId(`buy_product:frutas:${product.id}`)
+          .setLabel(product.nome)
+          .setStyle(ButtonStyle.Primary)
+          .setEmoji('🍎')
+      );
+    });
+    rows.push(row);
+  }
+
+  products.forEach(product => embed.addFields(formatProduct(product)));
+  return { embeds: [embed], components: rows };
+}
 
 module.exports = {
-  id: 'cart_checkout',
-  async execute(interaction) {
-    const summary = getCartSummary(interaction.user.id);
-    if (!summary.items.length) {
-      return interaction.reply({ content: '❌ Seu carrinho está vazio.', ephemeral: true });
-    }
-
-    const result = createOrderFromCart(interaction.user.id);
-    if (!result.success) {
-      return interaction.reply({ content: `❌ ${result.message}`, ephemeral: true });
-    }
-
-    const order = result.order;
-    const pixKey = process.env.PIX_KEY || 'PIX não configurado';
-
-    const embed = new EmbedBuilder()
-      .setColor(0xFFCC00)
-      .setTitle('💳 Pedido criado • Pagamento por Pix')
-      .setDescription('Seu pedido foi registrado e está aguardando pagamento para aprovação.\nUse o código Pix abaixo e envie o comprovante em seguida.')
-      .addFields(
-        { name: '🆔 Pedido', value: order.id, inline: true },
-        { name: '💰 Total', value: `R$ ${Number(order.total).toFixed(2)}`, inline: true },
-        { name: '📅 Data', value: new Date(order.data).toLocaleString('pt-BR'), inline: true },
-        { name: '💸 Chave Pix', value: pixKey, inline: false },
-        { name: '📦 Produtos', value: order.produtos.map(item => `${item.nome} (${item.quantidade}x)`).join('\n') || 'Nenhum item', inline: false },
-        { name: '🧾 Próximo passo', value: `Use o comando /comprovante com o ID do pedido e o link da imagem do comprovante.`, inline: false }
-      );
-
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`cart_view:${interaction.user.id}`).setLabel('Ver carrinho').setStyle(ButtonStyle.Secondary)
-    );
-
-    return interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
-  }
+  buildFrutasPanel,
+  renderPanel: buildFrutasPanel
 };
